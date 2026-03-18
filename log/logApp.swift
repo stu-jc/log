@@ -1,11 +1,5 @@
-//
-//  logApp.swift
-//  log
-//
-//  Created by joshua chelashaw on 6/3/2026.
-//
-
 import SwiftUI
+import SwiftData
 
 @main
 struct logApp: App {
@@ -13,5 +7,6 @@ struct logApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: [JournalEntry.self, FoodPhoto.self])
     }
 }

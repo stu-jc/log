@@ -425,7 +425,8 @@ struct MonthCalendarView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                ForEach(daysInMonth(), id: \.self) { day in
+                let days = daysInMonth()
+                ForEach(Array(days.enumerated()), id: \.offset) { _, day in
                     if let day {
                         let entry = entryFor(day)
                         Button {
@@ -436,7 +437,7 @@ struct MonthCalendarView: View {
                             VStack(spacing: 4) {
                                 Text("\(calendar.component(.day, from: day))")
                                     .font(.subheadline)
-                                    .foregroundStyle(entry == nil ? .primary : .blue)
+                                    .foregroundStyle(entry == nil ? Color.primary : Color.blue)
                                 Circle()
                                     .fill(entry == nil ? Color.clear : Color.blue)
                                     .frame(width: 6, height: 6)

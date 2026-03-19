@@ -1,34 +1,43 @@
+import Foundation
 import SwiftUI
 
 enum AppColors {
-    static let accent = Color(hex: "79B8FF")
-    static let accentSoft = Color(hex: "B9D8FF")
-    static let accentStrong = Color(hex: "4A84C4")
+    static let accent = Color(hex: "59E7DA")
+    static let accentSoft = Color(hex: "B2FFF8")
+    static let accentStrong = Color(hex: "19B7B0")
 
-    static let secondary = Color(hex: "8FB58A")
-    static let warning = Color(hex: "C98A64")
-    static let error = Color(hex: "FF6B6B")
-    static let success = Color(hex: "8FCEB2")
-    static let info = Color(hex: "8BA7C8")
+    static let secondary = Color(hex: "86F0A6")
+    static let warning = Color(hex: "FFBA6B")
+    static let error = Color(hex: "FF7E93")
+    static let success = Color(hex: "6DF0B3")
+    static let info = Color(hex: "73C5FF")
 
-    static let backgroundPrimary = Color(hex: "090C12")
-    static let backgroundSecondary = Color(hex: "111722")
-    static let backgroundTertiary = Color(hex: "1A2330")
-    static let cardBackground = Color(hex: "151E2A")
-    static let cardBackgroundStrong = Color(hex: "1E2A3A")
+    static let backgroundPrimary = Color(hex: "050816")
+    static let backgroundSecondary = Color(hex: "0A1022")
+    static let backgroundTertiary = Color(hex: "121B33")
+    static let backgroundElevated = Color(hex: "182443")
+    static let cardBackground = Color(hex: "0E1730")
+    static let cardBackgroundStrong = Color(hex: "162442")
+    static let inputBackground = Color(hex: "0C1428")
 
-    static let textPrimary = Color(hex: "EEF1F5")
-    static let textSecondary = Color(hex: "B4BDC9")
-    static let textTertiary = Color(hex: "7E8A99")
+    static let textPrimary = Color(hex: "F4F7FF")
+    static let textSecondary = Color(hex: "A8B3D1")
+    static let textTertiary = Color(hex: "6D7A99")
 
-    static let tabBarBackground = Color(hex: "0B1018")
+    static let divider = Color.white.opacity(0.10)
+    static let shadowColor = Color.black
+    static let glowPrimary = accent.opacity(0.32)
+    static let glowSecondary = info.opacity(0.22)
+
+    static let tabBarBackground = Color(hex: "08101F")
 
     static var appGradient: LinearGradient {
         LinearGradient(
             colors: [
-                Color(hex: "070B12"),
-                Color(hex: "101828"),
-                Color(hex: "26241F")
+                Color(hex: "03050B"),
+                Color(hex: "071021"),
+                Color(hex: "081927"),
+                Color(hex: "03050A")
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -45,7 +54,7 @@ enum AppColors {
 
     static var accentGradient: LinearGradient {
         LinearGradient(
-            colors: [accentSoft, accentStrong],
+            colors: [accentSoft, accent, info],
             startPoint: .leading,
             endPoint: .trailing
         )
@@ -53,7 +62,45 @@ enum AppColors {
 
     static var headerGradient: LinearGradient {
         LinearGradient(
-            colors: [accentStrong.opacity(0.34), Color(hex: "403729").opacity(0.9)],
+            colors: [
+                Color(hex: "13274B"),
+                Color(hex: "0D1831"),
+                Color(hex: "09101F")
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    static var panelGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                backgroundElevated.opacity(0.96),
+                cardBackgroundStrong.opacity(0.92),
+                cardBackground.opacity(0.96)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    static var inputGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                backgroundTertiary.opacity(0.98),
+                inputBackground.opacity(0.98)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    static var dateBadgeGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                accent.opacity(0.28),
+                info.opacity(0.20)
+            ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -94,13 +141,28 @@ struct CardStyle: ViewModifier {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(AppColors.cardGradient)
+                    .fill(AppColors.panelGradient)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.16),
+                                Color.white.opacity(0.03)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
             )
-            .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(AppColors.divider, lineWidth: 1)
+            )
+            .shadow(color: AppColors.shadowColor.opacity(0.45), radius: 24, x: 0, y: 16)
+            .shadow(color: AppColors.glowPrimary.opacity(0.10), radius: 18, x: 0, y: 0)
     }
 }
 
@@ -116,9 +178,10 @@ struct PrimaryButtonStyle: ButtonStyle {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.24), lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .shadow(color: AppColors.glowPrimary.opacity(configuration.isPressed ? 0.18 : 0.32), radius: 18, x: 0, y: 10)
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
@@ -132,14 +195,51 @@ struct SecondaryButtonStyle: ButtonStyle {
             .padding(.vertical, 10)
             .background(
                 Capsule()
-                    .fill(AppColors.backgroundTertiary)
+                    .fill(AppColors.inputGradient)
             )
             .overlay(
                 Capsule()
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    .stroke(AppColors.divider, lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+struct AppBackground: View {
+    var body: some View {
+        ZStack {
+            AppColors.appGradient
+
+            Circle()
+                .fill(AppColors.glowPrimary)
+                .frame(width: 380, height: 380)
+                .blur(radius: 110)
+                .offset(x: -130, y: -290)
+
+            Circle()
+                .fill(AppColors.glowSecondary)
+                .frame(width: 320, height: 320)
+                .blur(radius: 120)
+                .offset(x: 170, y: -180)
+
+            Circle()
+                .fill(AppColors.secondary.opacity(0.14))
+                .frame(width: 260, height: 260)
+                .blur(radius: 100)
+                .offset(x: 120, y: 320)
+
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.06),
+                    Color.clear,
+                    Color.black.opacity(0.18)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .ignoresSafeArea()
     }
 }
 

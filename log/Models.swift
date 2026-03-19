@@ -4,6 +4,7 @@ import SwiftData
 @Model
 final class JournalEntry {
     var date: Date
+    var dailyDopeMomentText: String
     var foodText: String
     var workoutText: String
     var workText: String
@@ -13,6 +14,7 @@ final class JournalEntry {
 
     init(
         date: Date,
+        dailyDopeMomentText: String = "",
         foodText: String = "",
         workoutText: String = "",
         workText: String = "",
@@ -21,6 +23,7 @@ final class JournalEntry {
         photos: [FoodPhoto] = []
     ) {
         self.date = date
+        self.dailyDopeMomentText = dailyDopeMomentText
         self.foodText = foodText
         self.workoutText = workoutText
         self.workText = workText
@@ -30,7 +33,8 @@ final class JournalEntry {
     }
 
     var previewText: String {
-        let candidates = [foodText, workoutText, workText].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let candidates = [dailyDopeMomentText, foodText, workoutText, workText]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         if let first = candidates.first(where: { !$0.isEmpty }) {
             return String(first.prefix(80))
         }

@@ -1,27 +1,32 @@
+import Foundation
 import SwiftUI
 import SwiftData
 
-struct HistoryView: View {
-    enum Mode: String, CaseIterable {
-        case list = "List"
-        case calendar = "Calendar"
-    }
+enum HistoryDisplayMode: String, CaseIterable {
+    case list = "List"
+    case calendar = "Calendar"
+}
 
+struct HistoryView: View {
+    @EnvironmentObject private var navigation: AppNavigationModel
     @Query(sort: \JournalEntry.date, order: .reverse) private var entries: [JournalEntry]
 
-    @State private var mode: Mode = .list
     @State private var month: Date = .now
     @State private var selectedEntry: JournalEntry?
     @State private var shareURL: URL?
     @State private var showShareSheet = false
+    @State private var showExportSheet = false
+    @State private var pendingShareURL: URL?
+    @State private var exportStartDate: Date = .now
+    @State private var exportEndDate: Date = .now
 
     var body: some View {
         ZStack {
-            AppColors.appGradient.ignoresSafeArea()
+            AppBackground()
 
             VStack(spacing: 14) {
-                Picker("Mode", selection: $mode) {
-                    ForEach(Mode.allCases, id: \.self) { mode in
+                Picker("Mode", selection: $navigation.historyMode) {
+                    ForEach(HistoryDisplayMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
                     }
                 }
@@ -29,41 +34,24 @@ struct HistoryView: View {
                 .padding(6)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(AppColors.backgroundSecondary.opacity(0.95))
+                        .fill(AppColors.inputGradient)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(AppColors.divider, lineWidth: 1)
                 )
+                .shadow(color: AppColors.shadowColor.opacity(0.32), radius: 18, x: 0, y: 12)
                 .padding(.horizontal)
 
-                if mode == .list {
-                    if entries.isEmpty {
-                        EmptyStateCard(
-                            icon: "clock.arrow.circlepath",
-                            title: "No history yet",
-                            subtitle: "Save entries in Today to build your timeline."
-                        )
-                        .padding(.horizontal)
-                        Spacer()
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 12) {
-                                ForEach(entries) { entry in
-                                    EntryRow(entry: entry)
-                                        .onTapGesture { selectedEntry = entry }
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 20)
-                        }
-                    }
-                } else {
-                    MonthCalendarView(month: $month, entries: entries) { entry in
-                        selectedEntry = entry
-                    }
-                    Spacer(minLength: 0)
+                TabView(selection: $navigation.historyMode) {
+                    historyListPage
+                        .tag(HistoryDisplayMode.list)
+
+                    historyCalendarPage
+                        .tag(HistoryDisplayMode.calendar)
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(.spring(response: 0.45, dampingFraction: 0.9), value: navigation.historyMode)
             }
             .padding(.top, 8)
         }
@@ -72,8 +60,7 @@ struct HistoryView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    shareURL = CSVExporter.export(entries: entries)
-                    showShareSheet = shareURL != nil
+                    presentExportSheet()
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 15, weight: .semibold))
@@ -81,17 +68,39 @@ struct HistoryView: View {
                         .frame(width: 34, height: 34)
                         .background(
                             Circle()
-                                .fill(AppColors.backgroundTertiary)
+                                .fill(AppColors.inputGradient)
                         )
                         .overlay(
                             Circle()
-                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                .stroke(AppColors.divider, lineWidth: 1)
                         )
                 }
             }
         }
+        .onAppear {
+            applyHistoryFocusRequest()
+        }
+        .onChange(of: navigation.historyFocusRequest?.id) { _, _ in
+            applyHistoryFocusRequest()
+        }
+        .sheet(isPresented: $showExportSheet, onDismiss: {
+            if let pendingShareURL {
+                shareURL = pendingShareURL
+                showShareSheet = true
+                self.pendingShareURL = nil
+            }
+        }) {
+            DateRangeExportSheet(
+                startDate: exportStartDate,
+                endDate: exportEndDate
+            ) { startDate, endDate in
+                let url = CSVExporter.export(entries: entries, startDate: startDate, endDate: endDate)
+                pendingShareURL = url
+                return url
+            }
+        }
         .sheet(item: $selectedEntry) { entry in
-            EntryEditorSheet(entry: entry, closeButtonTitle: "Back to History")
+            HistoryEntryPagerSheet(entries: entries, initialEntryDate: entry.date)
         }
         .sheet(isPresented: $showShareSheet) {
             if let shareURL {
@@ -99,16 +108,88 @@ struct HistoryView: View {
             }
         }
     }
+
+    private func presentExportSheet() {
+        let defaultStartDate = entries.last?.date ?? .now
+        let defaultEndDate = entries.first?.date ?? defaultStartDate
+        exportStartDate = defaultStartDate
+        exportEndDate = defaultEndDate
+        pendingShareURL = nil
+        showExportSheet = true
+    }
+
+    @ViewBuilder
+    private var historyListPage: some View {
+        if entries.isEmpty {
+            VStack {
+                EmptyStateCard(
+                    icon: "clock.arrow.circlepath",
+                    title: "No history yet",
+                    subtitle: "Save entries in Today to build your timeline."
+                )
+                .padding(.horizontal)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(entries) { entry in
+                        EntryRow(
+                            entry: entry,
+                            minimal: true,
+                            weekdayLocaleIdentifier: "sw_KE"
+                        )
+                            .onTapGesture { selectedEntry = entry }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var historyCalendarPage: some View {
+        VStack(spacing: 0) {
+            MonthCalendarView(
+                month: $month,
+                entries: entries,
+                highlightedDate: navigation.historyHighlightedDate
+            ) { entry in
+                selectedEntry = entry
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func applyHistoryFocusRequest() {
+        guard let request = navigation.historyFocusRequest else { return }
+
+        withAnimation(.spring(response: 0.55, dampingFraction: 0.92)) {
+            navigation.historyMode = .calendar
+            month = request.date
+        }
+
+        navigation.historyFocusRequest = nil
+    }
 }
 
 struct MonthCalendarView: View {
     @Binding var month: Date
     let entries: [JournalEntry]
+    let highlightedDate: Date?
     let onSelectEntry: (JournalEntry) -> Void
 
     private let calendar = Calendar.current
     private let columns = Array(repeating: GridItem(.flexible()), count: 7)
     private var today: Date { calendar.startOfDay(for: .now) }
+    private var swahiliWeekdaySymbols: [String] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sw_KE")
+        return formatter.veryShortStandaloneWeekdaySymbols
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -118,7 +199,7 @@ struct MonthCalendarView: View {
                 } label: {
                     Image(systemName: "chevron.left.circle.fill")
                         .font(.title2)
-                        .foregroundColor(AppColors.accentSoft)
+                        .foregroundStyle(AppColors.accentSoft, AppColors.accentStrong)
                 }
 
                 Text(month, format: .dateTime.month(.wide).year())
@@ -130,13 +211,13 @@ struct MonthCalendarView: View {
                 } label: {
                     Image(systemName: "chevron.right.circle.fill")
                         .font(.title2)
-                        .foregroundColor(AppColors.accentSoft)
+                        .foregroundStyle(AppColors.accentSoft, AppColors.accentStrong)
                 }
             }
             .padding(.horizontal)
 
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(calendar.veryShortWeekdaySymbols, id: \.self) { symbol in
+                ForEach(Array(swahiliWeekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.caption.bold())
                         .foregroundColor(AppColors.textSecondary)
@@ -147,6 +228,7 @@ struct MonthCalendarView: View {
                     if let day {
                         let entry = entryFor(day)
                         let isToday = calendar.isDate(day, inSameDayAs: today)
+                        let isHighlighted = highlightedDate.map { calendar.isDate(day, inSameDayAs: $0) } ?? false
 
                         Button {
                             if let entry {
@@ -162,8 +244,15 @@ struct MonthCalendarView: View {
                                         Circle()
                                             .fill(
                                                 entry == nil
-                                                    ? (isToday ? AppColors.backgroundTertiary : Color.clear)
-                                                    : AppColors.accentStrong.opacity(0.55)
+                                                    ? AnyShapeStyle(isToday ? AppColors.backgroundTertiary : Color.clear)
+                                                    : AnyShapeStyle(isHighlighted ? AppColors.accentGradient : AppColors.dateBadgeGradient)
+                                            )
+                                    )
+                                    .overlay(
+                                        Circle()
+                                            .stroke(
+                                                isHighlighted ? Color.white.opacity(0.38) : Color.clear,
+                                                lineWidth: 1.5
                                             )
                                     )
 
@@ -174,10 +263,23 @@ struct MonthCalendarView: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                             .background(
                                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                    .fill(entry == nil ? Color.clear : AppColors.accentStrong.opacity(0.18))
+                                    .fill(
+                                        entry == nil
+                                            ? (isHighlighted ? AppColors.accent.opacity(0.12) : Color.clear)
+                                            : (isHighlighted ? AppColors.accent.opacity(0.16) : AppColors.accent.opacity(0.06))
+                                    )
                             )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    .stroke(
+                                        isHighlighted ? Color.white.opacity(0.12) : Color.clear,
+                                        lineWidth: 1
+                                    )
+                            )
+                            .scaleEffect(isHighlighted ? 1.03 : 1)
                         }
                         .buttonStyle(.plain)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isHighlighted)
                     } else {
                         Color.clear
                             .frame(height: 44)
@@ -189,13 +291,24 @@ struct MonthCalendarView: View {
         .padding(.vertical)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(AppColors.cardGradient)
+                .fill(AppColors.panelGradient)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                .stroke(AppColors.divider, lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.35), radius: 14, x: 0, y: 10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.16), Color.clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: AppColors.shadowColor.opacity(0.42), radius: 22, x: 0, y: 16)
         .padding(.horizontal)
     }
 
@@ -223,5 +336,107 @@ struct MonthCalendarView: View {
 
     private func entryFor(_ day: Date) -> JournalEntry? {
         entries.first { calendar.isDate($0.date, inSameDayAs: day) }
+    }
+}
+
+struct DateRangeExportSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let exportAction: (Date, Date) -> URL?
+    @State private var startDate: Date
+    @State private var endDate: Date
+    @State private var showingError = false
+
+    init(
+        startDate: Date,
+        endDate: Date,
+        exportAction: @escaping (Date, Date) -> URL?
+    ) {
+        self.exportAction = exportAction
+        _startDate = State(initialValue: startDate)
+        _endDate = State(initialValue: endDate)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackground()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Export a date range")
+                                .font(.system(.title2, design: .rounded).weight(.bold))
+                                .foregroundColor(AppColors.textPrimary)
+                            Text("The CSV includes only journal text and photo counts.")
+                                .font(.system(.subheadline, design: .rounded))
+                                .foregroundColor(AppColors.textSecondary)
+                        }
+
+                        VStack(spacing: 12) {
+                            DatePicker(
+                                "Start",
+                                selection: $startDate,
+                                displayedComponents: .date
+                            )
+                            .tint(AppColors.accentStrong)
+
+                            Divider()
+                                .overlay(AppColors.divider.opacity(0.8))
+
+                            DatePicker(
+                                "End",
+                                selection: $endDate,
+                                displayedComponents: .date
+                            )
+                            .tint(AppColors.accentStrong)
+                        }
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(AppColors.panelGradient)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(AppColors.divider, lineWidth: 1)
+                        )
+
+                        Button {
+                            export()
+                        } label: {
+                            Text("Export CSV")
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
+                }
+            }
+            .navigationTitle("Export")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(AppColors.textPrimary)
+                }
+            }
+            .alert("Couldn’t create export", isPresented: $showingError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Try again.")
+            }
+        }
+    }
+
+    private func export() {
+        guard exportAction(startDate, endDate) != nil else {
+            showingError = true
+            return
+        }
+
+        dismiss()
     }
 }

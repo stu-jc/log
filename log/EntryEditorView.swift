@@ -1,6 +1,8 @@
+import Foundation
 import PhotosUI
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct EntryEditorView: View {
     @Environment(\.modelContext) private var modelContext
@@ -9,8 +11,10 @@ struct EntryEditorView: View {
     let entry: JournalEntry?
     let targetDate: Date
     var showsCloseButton: Bool = false
-    var closeButtonTitle: String = "Close"
+    var weekdayLocaleIdentifier: String? = nil
+    var onPrimarySave: (() -> Void)? = nil
 
+    @State private var dailyDopeMomentText = ""
     @State private var foodText = ""
     @State private var workoutText = ""
     @State private var workText = ""
@@ -18,142 +22,135 @@ struct EntryEditorView: View {
     @State private var photoPickerItems: [PhotosPickerItem] = []
     @State private var showSaveFeedback = false
     @State private var saveFeedbackText = "Saved"
+    @State private var isCompletingPrimarySave = false
 
     private var dayDate: Date { Calendar.current.startOfDay(for: targetDate) }
 
     var body: some View {
         ZStack {
-            AppColors.appGradient.ignoresSafeArea()
+            AppBackground()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(dayDate, format: .dateTime.weekday(.wide))
-                                .font(.system(.title2, design: .rounded).weight(.bold))
-                                .foregroundColor(AppColors.textPrimary)
-                            Text(dayDate, format: .dateTime.month().day().year())
-                                .font(.system(.subheadline, design: .rounded))
-                                .foregroundColor(AppColors.textSecondary)
-                        }
+                VStack(alignment: .leading, spacing: 20) {
+                    editorHeader
 
-                        Spacer()
+                    VStack(spacing: 0) {
+                        SectionCard(
+                            title: "Daily Dope Moment",
+                            icon: "sparkles.circle.fill",
+                            iconColor: AppColors.accentStrong,
+                            placeholder: "The best thing about this day.",
+                            text: $dailyDopeMomentText
+                        )
 
-                        VStack(alignment: .trailing, spacing: 8) {
-                            if isEntryComplete {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .font(.title2)
-                                    .foregroundColor(AppColors.success)
-                            }
+                        Divider()
+                            .overlay(AppColors.divider)
+                            .padding(.horizontal, 18)
 
-                            if !showsCloseButton && hasEntryContent {
-                                Button("Clear") {
-                                    deleteEntry(shouldDismiss: false)
-                                    presentSaveFeedback("Cleared")
+                        SectionCard(
+                            title: "Food",
+                            icon: "fork.knife.circle.fill",
+                            iconColor: AppColors.secondary,
+                            placeholder: "Meals, cravings, groceries, photos.",
+                            text: $foodText
+                        ) {
+                            PhotosPicker(
+                                selection: $photoPickerItems,
+                                maxSelectionCount: max(0, 5 - photoCount),
+                                matching: .images
+                            ) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "photo.stack")
+                                    Text("Add Photos")
                                 }
-                                .font(.system(.caption, design: .rounded).weight(.semibold))
+                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
                                 .foregroundColor(AppColors.textPrimary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 9)
                                 .background(
                                     Capsule()
-                                        .fill(AppColors.backgroundPrimary.opacity(0.45))
+                                        .fill(AppColors.inputGradient)
                                 )
                                 .overlay(
                                     Capsule()
-                                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                                        .stroke(AppColors.divider, lineWidth: 1)
                                 )
+                                .shadow(color: AppColors.shadowColor.opacity(0.28), radius: 10, x: 0, y: 4)
+                            }
+                            .disabled(photoCount >= 5)
+
+                            if let photos = currentEntry?.photos, !photos.isEmpty {
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 12)], spacing: 12) {
+                                    ForEach(photos) { photo in
+                                        PhotoThumbnail(photo: photo) { deletePhoto(photo) }
+                                    }
+                                }
+                                .padding(.top, 6)
+                            }
+
+                            HStack {
+                                Spacer()
+                                Text("\(photoCount)/5 photos")
+                                    .font(.caption)
+                                    .foregroundColor(AppColors.textTertiary)
                             }
                         }
+
+                        Divider()
+                            .overlay(AppColors.divider)
+                            .padding(.horizontal, 18)
+
+                        SectionCard(
+                            title: "Workout",
+                            icon: "figure.run.circle.fill",
+                            iconColor: AppColors.info,
+                            placeholder: "Training, movement, steps, energy.",
+                            text: $workoutText
+                        )
+
+                        Divider()
+                            .overlay(AppColors.divider)
+                            .padding(.horizontal, 18)
+
+                        SectionCard(
+                            title: "Work",
+                            icon: "briefcase.circle.fill",
+                            iconColor: AppColors.warning,
+                            placeholder: "Work, priorities, what moved forward.",
+                            text: $workText
+                        )
                     }
-                    .padding(16)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(AppColors.headerGradient)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(AppColors.panelGradient)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(AppColors.divider, lineWidth: 1)
                     )
-
-                    SectionCard(
-                        title: "Food",
-                        icon: "fork.knife.circle.fill",
-                        iconColor: AppColors.secondary,
-                        text: $foodText,
-                        flatFieldStyle: !showsCloseButton
-                    ) {
-                        PhotosPicker(
-                            selection: $photoPickerItems,
-                            maxSelectionCount: max(0, 5 - (currentEntry?.photos.count ?? 0)),
-                            matching: .images
-                        ) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "photo.stack")
-                                Text("Add Photos")
-                            }
-                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                            .foregroundColor(AppColors.textPrimary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 9)
-                            .background(
-                                Capsule()
-                                    .fill(AppColors.backgroundTertiary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.14), Color.clear],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
                             )
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                            )
-                        }
-                        .disabled((currentEntry?.photos.count ?? 0) >= 5)
-
-                        if let photos = currentEntry?.photos, !photos.isEmpty {
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 12)], spacing: 12) {
-                                ForEach(photos) { photo in
-                                    PhotoThumbnail(photo: photo) { deletePhoto(photo) }
-                                }
-                            }
-                            .padding(.top, 6)
-                        }
-
-                        HStack {
-                            Spacer()
-                            Text("\(currentEntry?.photos.count ?? 0)/5 photos")
-                                .font(.caption)
-                                .foregroundColor(AppColors.textTertiary)
-                        }
-                    }
-
-                    SectionCard(
-                        title: "Workout",
-                        icon: "figure.run.circle.fill",
-                        iconColor: AppColors.info,
-                        text: $workoutText,
-                        flatFieldStyle: !showsCloseButton
                     )
-
-                    SectionCard(
-                        title: "Work",
-                        icon: "briefcase.circle.fill",
-                        iconColor: AppColors.warning,
-                        text: $workText,
-                        flatFieldStyle: !showsCloseButton
-                    )
+                    .shadow(color: AppColors.shadowColor.opacity(0.42), radius: 26, x: 0, y: 18)
 
                     Button("Save Entry") {
-                        autosave()
-                        if showsCloseButton {
-                            dismiss()
-                        } else {
-                            presentSaveFeedback("Saved")
-                        }
+                        handleSaveTapped()
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .padding(.top, 4)
+                    .disabled(isCompletingPrimarySave || !hasEntryContent)
+                    .opacity(isCompletingPrimarySave || !hasEntryContent ? 0.72 : 1)
                 }
-                .padding(.horizontal)
-                .padding(.top, showsCloseButton ? 10 : 2)
-                .padding(.bottom, showsCloseButton ? 94 : 24)
+                .padding(.horizontal, 20)
+                .padding(.top, showsCloseButton ? 14 : 8)
+                .padding(.bottom, 28)
             }
         }
         .navigationTitle(showsCloseButton ? "Log" : "")
@@ -165,9 +162,18 @@ struct EntryEditorView: View {
                     Button {
                         dismiss()
                     } label: {
-                        Label("Close", systemImage: "xmark.circle.fill")
-                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(AppColors.textPrimary)
+                            .frame(width: 34, height: 34)
+                            .background(
+                                Circle()
+                                    .fill(AppColors.inputGradient)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(AppColors.divider, lineWidth: 1)
+                            )
                     }
                 }
             }
@@ -183,36 +189,6 @@ struct EntryEditorView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            if showsCloseButton {
-                HStack {
-                    Button {
-                        dismiss()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "chevron.down.circle.fill")
-                            Text(closeButtonTitle)
-                        }
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                }
-                .padding(.horizontal)
-                .padding(.top, 6)
-                .padding(.bottom, 8)
-                .background(
-                    LinearGradient(
-                        colors: [
-                            AppColors.backgroundPrimary.opacity(0),
-                            AppColors.backgroundPrimary.opacity(0.82),
-                            AppColors.backgroundPrimary
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .ignoresSafeArea()
-                )
-            }
-        }
         .overlay(alignment: .top) {
             if showSaveFeedback {
                 HStack(spacing: 8) {
@@ -220,7 +196,7 @@ struct EntryEditorView: View {
                     Text(saveFeedbackText)
                 }
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                .foregroundColor(AppColors.backgroundPrimary)
+                .foregroundColor(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
@@ -229,13 +205,14 @@ struct EntryEditorView: View {
                 )
                 .overlay(
                     Capsule()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        .stroke(AppColors.success.opacity(0.25), lineWidth: 1)
                 )
                 .padding(.top, 10)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .onAppear { loadEntry() }
+        .onChange(of: dailyDopeMomentText) { _, _ in autosave() }
         .onChange(of: foodText) { _, _ in autosave() }
         .onChange(of: workoutText) { _, _ in autosave() }
         .onChange(of: workText) { _, _ in autosave() }
@@ -244,8 +221,92 @@ struct EntryEditorView: View {
         }
     }
 
+    private var editorHeader: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(formattedWeekday)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .foregroundColor(AppColors.textPrimary)
+                Text(dayDate, format: .dateTime.month().day().year())
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundColor(AppColors.textSecondary)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 10) {
+                if isEntryComplete {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Complete")
+                    }
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .foregroundColor(AppColors.success)
+                }
+
+                if !showsCloseButton && hasEntryContent {
+                    Button("Clear") {
+                        deleteEntry(shouldDismiss: false)
+                        presentSaveFeedback("Cleared")
+                    }
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .foregroundColor(AppColors.textPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(
+                        Capsule()
+                            .fill(AppColors.inputGradient)
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(AppColors.divider, lineWidth: 1)
+                    )
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(AppColors.headerGradient)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(AppColors.divider, lineWidth: 1)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.16), Color.clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: AppColors.shadowColor.opacity(0.34), radius: 24, x: 0, y: 16)
+    }
+
     private var isEntryComplete: Bool {
-        !trimmedFoodText.isEmpty && !trimmedWorkoutText.isEmpty && !trimmedWorkText.isEmpty
+        !trimmedDailyDopeMomentText.isEmpty
+            && !trimmedFoodText.isEmpty
+            && !trimmedWorkoutText.isEmpty
+            && !trimmedWorkText.isEmpty
+    }
+
+    private var formattedWeekday: String {
+        guard let weekdayLocaleIdentifier else {
+            return dayDate.formatted(.dateTime.weekday(.wide))
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: weekdayLocaleIdentifier)
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: dayDate).capitalized(with: formatter.locale)
+    }
+
+    private var trimmedDailyDopeMomentText: String {
+        dailyDopeMomentText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var trimmedFoodText: String {
@@ -260,21 +321,51 @@ struct EntryEditorView: View {
         workText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var photoCount: Int {
+        currentEntry?.photos.count ?? 0
+    }
+
     private var hasEntryContent: Bool {
-        !trimmedFoodText.isEmpty
+        !trimmedDailyDopeMomentText.isEmpty
+            || !trimmedFoodText.isEmpty
             || !trimmedWorkoutText.isEmpty
             || !trimmedWorkText.isEmpty
-            || !(currentEntry?.photos.isEmpty ?? true)
+            || photoCount > 0
+    }
+
+    private func handleSaveTapped() {
+        let shouldRouteToHistory = !showsCloseButton && hasEntryContent
+
+        autosave()
+
+        guard shouldRouteToHistory else {
+            if showsCloseButton {
+                dismiss()
+            } else {
+                presentSaveFeedback("Saved")
+            }
+            return
+        }
+
+        isCompletingPrimarySave = true
+        presentSaveFeedback("Saved")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            onPrimarySave?()
+            isCompletingPrimarySave = false
+        }
     }
 
     private func loadEntry() {
         if let entry {
             currentEntry = entry
+            dailyDopeMomentText = entry.dailyDopeMomentText
             foodText = entry.foodText
             workoutText = entry.workoutText
             workText = entry.workText
         } else {
             currentEntry = fetchEntry(for: dayDate)
+            dailyDopeMomentText = currentEntry?.dailyDopeMomentText ?? ""
             foodText = currentEntry?.foodText ?? ""
             workoutText = currentEntry?.workoutText ?? ""
             workText = currentEntry?.workText ?? ""
@@ -314,12 +405,14 @@ struct EntryEditorView: View {
 
         let entry = ensureEntry()
         let didChange =
-            entry.foodText != foodText
+            entry.dailyDopeMomentText != dailyDopeMomentText
+            || entry.foodText != foodText
             || entry.workoutText != workoutText
             || entry.workText != workText
 
         guard didChange else { return }
 
+        entry.dailyDopeMomentText = dailyDopeMomentText
         entry.foodText = foodText
         entry.workoutText = workoutText
         entry.workText = workText
@@ -356,6 +449,12 @@ struct EntryEditorView: View {
             let photo = FoodPhoto(localPath: path, entry: entry)
             modelContext.insert(photo)
             entry.photos.append(photo)
+
+            let uniformTypeIdentifier = item.supportedContentTypes.first(where: { $0.conforms(to: .image) })?.identifier
+            await PhotoLibraryStore.addImportedImage(
+                data: data,
+                uniformTypeIdentifier: uniformTypeIdentifier
+            )
         }
 
         entry.updatedAt = .now
@@ -368,7 +467,12 @@ struct EntryEditorView: View {
         modelContext.delete(photo)
 
         if let entry = currentEntry {
-            if entry.photos.count <= 1 && trimmedFoodText.isEmpty && trimmedWorkoutText.isEmpty && trimmedWorkText.isEmpty {
+            if entry.photos.count <= 1
+                && trimmedDailyDopeMomentText.isEmpty
+                && trimmedFoodText.isEmpty
+                && trimmedWorkoutText.isEmpty
+                && trimmedWorkText.isEmpty
+            {
                 deleteEntry(entry, shouldDismiss: false)
             } else {
                 entry.updatedAt = .now
@@ -388,6 +492,7 @@ struct EntryEditorView: View {
         try? modelContext.save()
 
         currentEntry = nil
+        dailyDopeMomentText = ""
         foodText = ""
         workoutText = ""
         workText = ""

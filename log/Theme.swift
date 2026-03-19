@@ -5,6 +5,8 @@ enum AppColors {
     static let accent = Color(hex: "59E7DA")
     static let accentSoft = Color(hex: "B2FFF8")
     static let accentStrong = Color(hex: "19B7B0")
+    static let accentDeep = Color(hex: "117D83")
+    static let accentDeeper = Color(hex: "0A5568")
 
     static let secondary = Color(hex: "86F0A6")
     static let warning = Color(hex: "FFBA6B")
@@ -57,6 +59,22 @@ enum AppColors {
             colors: [accentSoft, accent, info],
             startPoint: .leading,
             endPoint: .trailing
+        )
+    }
+
+    static var primaryButtonGradient: LinearGradient {
+        LinearGradient(
+            colors: [accentStrong, accentDeep, accentDeeper],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    static var highlightedDateGradient: LinearGradient {
+        LinearGradient(
+            colors: [accentStrong, accentDeep, accentDeeper],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
         )
     }
 
@@ -167,21 +185,29 @@ struct CardStyle: ViewModifier {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    var darker = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(.headline, design: .rounded).weight(.semibold))
-            .foregroundColor(AppColors.backgroundPrimary)
+            .foregroundColor(darker ? AppColors.textPrimary : AppColors.backgroundPrimary)
             .padding(.horizontal, 24)
             .padding(.vertical, 13)
             .frame(maxWidth: .infinity)
-            .background(AppColors.accentGradient)
+            .background(darker ? AppColors.primaryButtonGradient : AppColors.accentGradient)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                    .stroke(Color.white.opacity(darker ? 0.14 : 0.24), lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
-            .shadow(color: AppColors.glowPrimary.opacity(configuration.isPressed ? 0.18 : 0.32), radius: 18, x: 0, y: 10)
+            .shadow(
+                color: (darker ? AppColors.accentDeep : AppColors.glowPrimary)
+                    .opacity(configuration.isPressed ? (darker ? 0.14 : 0.18) : (darker ? 0.24 : 0.32)),
+                radius: darker ? 14 : 18,
+                x: 0,
+                y: darker ? 8 : 10
+            )
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }

@@ -144,7 +144,7 @@ struct EntryEditorView: View {
                     Button("Save Entry") {
                         handleSaveTapped()
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle(darker: true))
                     .disabled(isCompletingPrimarySave || !hasEntryContent)
                     .opacity(isCompletingPrimarySave || !hasEntryContent ? 0.72 : 1)
                 }

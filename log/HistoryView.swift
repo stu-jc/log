@@ -245,13 +245,13 @@ struct MonthCalendarView: View {
                                             .fill(
                                                 entry == nil
                                                     ? AnyShapeStyle(isToday ? AppColors.backgroundTertiary : Color.clear)
-                                                    : AnyShapeStyle(isHighlighted ? AppColors.accentGradient : AppColors.dateBadgeGradient)
+                                                    : AnyShapeStyle(isHighlighted ? AppColors.highlightedDateGradient : AppColors.dateBadgeGradient)
                                             )
                                     )
                                     .overlay(
                                         Circle()
                                             .stroke(
-                                                isHighlighted ? Color.white.opacity(0.38) : Color.clear,
+                                                isHighlighted ? Color.white.opacity(0.26) : Color.clear,
                                                 lineWidth: 1.5
                                             )
                                     )
@@ -265,14 +265,14 @@ struct MonthCalendarView: View {
                                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                                     .fill(
                                         entry == nil
-                                            ? (isHighlighted ? AppColors.accent.opacity(0.12) : Color.clear)
-                                            : (isHighlighted ? AppColors.accent.opacity(0.16) : AppColors.accent.opacity(0.06))
+                                            ? (isHighlighted ? AppColors.accentDeep.opacity(0.18) : Color.clear)
+                                            : (isHighlighted ? AppColors.accentDeep.opacity(0.24) : AppColors.accent.opacity(0.06))
                                     )
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                                     .stroke(
-                                        isHighlighted ? Color.white.opacity(0.12) : Color.clear,
+                                        isHighlighted ? Color.white.opacity(0.10) : Color.clear,
                                         lineWidth: 1
                                     )
                             )

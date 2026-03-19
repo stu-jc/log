@@ -89,8 +89,19 @@ enum PhotoLibraryStore {
 
     static func addImportedImage(
         data: Data,
+        uniformTypeIdentifier: String?
+    ) async {
+        await addImportedImage(
+            data: data,
+            uniformTypeIdentifier: uniformTypeIdentifier,
+            albumName: defaultAlbumName
+        )
+    }
+
+    static func addImportedImage(
+        data: Data,
         uniformTypeIdentifier: String?,
-        albumName: String = defaultAlbumName
+        albumName: String
     ) async {
         let status = await ensureAuthorization()
         guard status == .authorized || status == .limited else { return }
